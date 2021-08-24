@@ -23,6 +23,8 @@ pub trait TypeToString {
 pub trait GenerateParamAbi {
     fn generate_ty_name() -> String;
 
+    fn generate_internal_ty_name() -> String;
+
     fn generate_param_abi(name: String) -> ParamAbi;
 }
 
@@ -44,8 +46,17 @@ where
         T::type_to_string()
     }
 
+    fn generate_internal_ty_name() -> String {
+        T::type_to_string()
+    }
+
     fn generate_param_abi(name: String) -> ParamAbi {
-        TrivialAbi::new(Self::generate_ty_name(), name).into()
+        TrivialAbi::new(
+            Self::generate_ty_name(),
+            Self::generate_internal_ty_name(),
+            name,
+        )
+        .into()
     }
 }
 
@@ -72,6 +83,12 @@ where
         sub_ty
     }
 
+    fn generate_internal_ty_name() -> String {
+        let mut internal_sub_ty = <T as GenerateParamAbi>::generate_internal_ty_name();
+        internal_sub_ty.push_str("[]");
+        internal_sub_ty
+    }
+
     fn generate_param_abi(name: String) -> ParamAbi {
         let param_abi = <T as GenerateParamAbi>::generate_param_abi(name.clone());
         let components = match param_abi {
@@ -80,10 +97,11 @@ where
         };
 
         CompositeAbi {
-            trivial: TrivialAbi {
+            trivial: TrivialAbi::new(
+                Self::generate_ty_name(),
+                Self::generate_internal_ty_name(),
                 name,
-                ty: Self::generate_ty_name(),
-            },
+            ),
             components,
         }
         .into()
@@ -113,6 +131,12 @@ where
         sub_ty
     }
 
+    fn generate_internal_ty_name() -> String {
+        let mut internal_sub_ty = <T as GenerateParamAbi>::generate_internal_ty_name();
+        internal_sub_ty.push_str(&format!("[{}]", N));
+        internal_sub_ty
+    }
+
     fn generate_param_abi(name: String) -> ParamAbi {
         let param_abi = <T as GenerateParamAbi>::generate_param_abi(name.clone());
         let components = match param_abi {
@@ -121,10 +145,11 @@ where
         };
 
         CompositeAbi {
-            trivial: TrivialAbi {
+            trivial: TrivialAbi::new(
+                Self::generate_ty_name(),
+                Self::generate_internal_ty_name(),
                 name,
-                ty: Self::generate_ty_name(),
-            },
+            ),
             components,
         }
         .into()
@@ -147,6 +172,10 @@ where
 #[cfg(feature = "contract")]
 impl GenerateParamAbi for __Liquid_Getter_Index_Placeholder {
     fn generate_ty_name() -> String {
+        String::new()
+    }
+
+    fn generate_internal_ty_name() -> String {
         String::new()
     }
 
@@ -219,20 +248,28 @@ where
         String::from("enum")
     }
 
+    fn generate_internal_ty_name() -> String {
+        String::from("enum.Option")
+    }
+
     fn generate_param_abi(name: String) -> ParamAbi {
         let some = ParamAbi::Composite(CompositeAbi {
-            trivial: TrivialAbi::new(String::from("Some"), String::new()),
+            trivial: TrivialAbi::new(String::from("Some"), String::new(), String::new()),
             components: vec![<T as GenerateParamAbi>::generate_param_abi(String::new())],
         });
         let none = ParamAbi::Composite(CompositeAbi {
-            trivial: TrivialAbi::new(String::from("None"), String::new()),
+            trivial: TrivialAbi::new(String::from("None"), String::new(), String::new()),
             components: vec![],
         });
 
         let components = vec![some, none];
 
         ParamAbi::Composite(CompositeAbi {
-            trivial: TrivialAbi::new(Self::generate_ty_name(), name),
+            trivial: TrivialAbi::new(
+                Self::generate_ty_name(),
+                Self::generate_internal_ty_name(),
+                name,
+            ),
             components,
         })
     }
@@ -247,23 +284,36 @@ where
         String::from("enum")
     }
 
+    fn generate_internal_ty_name() -> String {
+        String::from("enum.Result")
+    }
+
     fn generate_param_abi(name: String) -> ParamAbi {
         let ok = ParamAbi::Composite(CompositeAbi {
-            trivial: TrivialAbi::new(String::from("Ok"), String::new()),
+            trivial: TrivialAbi::new(String::from("Ok"), String::new(), String::new()),
             components: vec![<T as GenerateParamAbi>::generate_param_abi(String::new())],
         });
         let err = ParamAbi::Composite(CompositeAbi {
-            trivial: TrivialAbi::new(String::from("Err"), String::new()),
+            trivial: TrivialAbi::new(String::from("Err"), String::new(), String::new()),
             components: vec![<E as GenerateParamAbi>::generate_param_abi(String::new())],
         });
 
         let components = vec![ok, err];
 
         ParamAbi::Composite(CompositeAbi {
-            trivial: TrivialAbi::new(Self::generate_ty_name(), name),
+            trivial: TrivialAbi::new(
+                Self::generate_ty_name(),
+                Self::generate_internal_ty_name(),
+                name,
+            ),
             components,
         })
     }
+}
+
+macro_rules! count_elements {
+    () => (0usize);
+    ($x:tt $($xs:tt)*) => (1usize + count_elements!($($xs)*));
 }
 
 macro_rules! impl_generate_param_abi_for_tuple {
@@ -276,11 +326,17 @@ macro_rules! impl_generate_param_abi_for_tuple {
                 String::from("tuple")
             }
 
+            fn generate_internal_ty_name() -> String {
+                String::from("tuple.Tuple1")
+            }
+
             fn generate_param_abi(name: String) -> ParamAbi {
                 let param_abis = vec![<$first as GenerateParamAbi>::generate_param_abi("".to_owned())];
                 CompositeAbi {
-                    trivial: TrivialAbi::new(Self::generate_ty_name(), name),
-                    components: param_abis,
+                    trivial: TrivialAbi::new(
+                        Self::generate_ty_name(),
+                        Self::generate_internal_ty_name(), name),
+                        components: param_abis,
                 }
                 .into()
             }
@@ -296,13 +352,23 @@ macro_rules! impl_generate_param_abi_for_tuple {
                 String::from("tuple")
             }
 
+            fn generate_internal_ty_name() -> String {
+                const COUNT: usize = count_elements!($first $($rest )+);
+                let mut internal_ty_name = String::from("tuple.Tuple");
+                internal_ty_name.push_str(&COUNT.to_string());
+                internal_ty_name
+            }
+
             fn generate_param_abi(name: String) -> ParamAbi {
                 let mut param_abis = vec![<$first as GenerateParamAbi>::generate_param_abi("".to_owned())];
                 $(
                     param_abis.push(<$rest as GenerateParamAbi>::generate_param_abi("".to_owned()));
                 )+
                 CompositeAbi {
-                    trivial: TrivialAbi::new(Self::generate_ty_name(), name),
+                    trivial: TrivialAbi::new(
+                        Self::generate_ty_name(),
+                        Self::generate_internal_ty_name(),
+                        name),
                     components: param_abis,
                 }
                 .into()

@@ -478,11 +478,18 @@ fn generate_abi_struct(
         }).collect::<Vec<_>>()
     };
 
+    let ident_str = ident.to_string();
     quote! {
         #[cfg(feature = "liquid-abi-gen")]
         impl liquid_abi_gen::traits::GenerateParamAbi for #ident {
             fn generate_ty_name() -> liquid_prelude::string::String {
-                String::from("struct")
+                String::from("tuple")
+            }
+
+            fn generate_internal_ty_name() -> liquid_prelude::string::String {
+                let mut internal_ty_name = String::from("struct.");
+                internal_ty_name.push_str(#ident_str);
+                internal_ty_name
             }
 
             fn generate_param_abi(name: String) -> liquid_abi_gen::ParamAbi {
@@ -490,7 +497,10 @@ fn generate_abi_struct(
                 #(components.push(#field_param_abis);)*
                 liquid_abi_gen::ParamAbi::Composite(
                     liquid_abi_gen::CompositeAbi {
-                        trivial: liquid_abi_gen::TrivialAbi::new(Self::generate_ty_name(), name),
+                        trivial: liquid_abi_gen::TrivialAbi::new(
+                            Self::generate_ty_name(),
+                            Self::generate_internal_ty_name(),
+                            name),
                         components,
                     }
                 )
@@ -519,7 +529,10 @@ fn generate_abi_enum(ident: &Ident, variants: &[Variant]) -> TokenStream2 {
                 return quote! {
                     liquid_abi_gen::ParamAbi::Composite(
                         liquid_abi_gen::CompositeAbi {
-                            trivial: liquid_abi_gen::TrivialAbi::new(String::from(#ty), String::new()),
+                            trivial: liquid_abi_gen::TrivialAbi::new(
+                                String::from(#ty),
+                                String::new(),
+                                String::new()),
                             components: Vec::new(),
                         }
                     )
@@ -547,7 +560,10 @@ fn generate_abi_enum(ident: &Ident, variants: &[Variant]) -> TokenStream2 {
             quote! {
                 liquid_abi_gen::ParamAbi::Composite(
                     liquid_abi_gen::CompositeAbi {
-                        trivial: liquid_abi_gen::TrivialAbi::new(String::from(#ty), String::new()),
+                        trivial: liquid_abi_gen::TrivialAbi::new(
+                            String::from(#ty),
+                            String::new(),
+                            String::new()),
                         components: {
                             let mut components = Vec::new();
                             #(components.push(#field_abis);)*
@@ -558,6 +574,7 @@ fn generate_abi_enum(ident: &Ident, variants: &[Variant]) -> TokenStream2 {
             }
         });
 
+    let ident_str = ident.to_string();
     quote! {
         #[cfg(feature = "liquid-abi-gen")]
         impl liquid_abi_gen::traits::GenerateParamAbi for #ident {
@@ -565,12 +582,21 @@ fn generate_abi_enum(ident: &Ident, variants: &[Variant]) -> TokenStream2 {
                 String::from("enum")
             }
 
+            fn generate_internal_ty_name() -> liquid_prelude::string::String {
+                let mut internal_ty_name = String::from("enum.");
+                internal_ty_name.push_str(#ident_str);
+                internal_ty_name
+            }
+
             fn generate_param_abi(name: String) -> liquid_abi_gen::ParamAbi {
                 let mut components = Vec::new();
                 #(components.push(#variant_abis);)*
                 liquid_abi_gen::ParamAbi::Composite(
                     liquid_abi_gen::CompositeAbi {
-                        trivial: liquid_abi_gen::TrivialAbi::new(Self::generate_ty_name(), name),
+                        trivial: liquid_abi_gen::TrivialAbi::new(
+                            Self::generate_ty_name(),
+                            Self::generate_internal_ty_name(),
+                            name),
                         components,
                     }
                 )
